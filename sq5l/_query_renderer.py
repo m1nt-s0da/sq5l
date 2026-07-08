@@ -17,7 +17,7 @@ class QueryNode:
     source_subquery: Any | None = None
     source_alias: str | None = None
     joins: tuple[JoinItem, ...] = ()
-    where_expr: Any | None = None
+    where_exprs: tuple[Any, ...] = ()
     group_by: tuple[str | Any, ...] = ()
     having: Any | None = None
     order_items: tuple[OrderItem, ...] = ()
@@ -39,7 +39,7 @@ def build_query(source: Any) -> QueryNode:
     from ._select import Grouped, Ordered, Range, Selected
     from ._table import DerivedTable, TableAs
 
-    where_expr: Any | None = None
+    where_exprs_rev: list[Any] = []
     order_items: tuple[OrderItem, ...] = ()
     offset = 0
     limit: int | None = None
@@ -75,8 +75,8 @@ def build_query(source: Any) -> QueryNode:
             current = current.prev
             continue
 
-        if hasattr(current, "condition") and where_expr is None:
-            where_expr = current.condition
+        if hasattr(current, "condition"):
+            where_exprs_rev.append(current.condition)
             current = current.prev
             continue
 
@@ -117,7 +117,7 @@ def build_query(source: Any) -> QueryNode:
                 source_sql=source_sql,
                 table_refs=table_refs,
                 joins=joins,
-                where_expr=where_expr,
+                where_exprs=tuple(reversed(where_exprs_rev)),
                 group_by=group_by_cols,
                 having=having_expr,
                 order_items=order_items,
@@ -138,7 +138,7 @@ def build_query(source: Any) -> QueryNode:
                 source_alias=alias,
                 table_refs=table_refs,
                 joins=joins,
-                where_expr=where_expr,
+                where_exprs=tuple(reversed(where_exprs_rev)),
                 group_by=group_by_cols,
                 having=having_expr,
                 order_items=order_items,
@@ -158,7 +158,7 @@ def build_query(source: Any) -> QueryNode:
                 source_sql=source_sql,
                 table_refs=table_refs,
                 joins=joins,
-                where_expr=where_expr,
+                where_exprs=tuple(reversed(where_exprs_rev)),
                 group_by=group_by_cols,
                 having=having_expr,
                 order_items=order_items,
@@ -207,8 +207,11 @@ def _render_query_internal(
                 on_sql = _render_value(join.on, context, params)
                 parts.append(f"{join.kind} {join.right_source_sql} ON {on_sql}")
 
-    if query.where_expr is not None:
-        parts.append(f"WHERE {_render_value(query.where_expr, context, params)}")
+    if query.where_exprs:
+        where_sql = " AND ".join(
+            f"({_render_value(expr, context, params)})" for expr in query.where_exprs
+        )
+        parts.append(f"WHERE {where_sql}")
 
     if query.group_by:
         group_sql = ", ".join(

@@ -49,6 +49,39 @@ def test_select_where_order_range_runs_on_sqlite() -> None:
     assert [tuple(r) for r in rows] == [(2, "Micah")]
 
 
+def test_chained_where_runs_on_sqlite() -> None:
+    con = _conn()
+    con.executescript("""
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            age INTEGER NOT NULL
+        );
+        """)
+    con.executemany(
+        "INSERT INTO users (id, name, age) VALUES (?, ?, ?)",
+        [
+            (1, "Miki", 22),
+            (2, "Micah", 35),
+            (3, "Mike", 31),
+            (4, "Bob", 44),
+        ],
+    )
+
+    q, p = (
+        table("users")
+        .where(lambda users: users.name.like(param("Mi%")))
+        .where(lambda users: users.age >= param(30))
+        .order(("id", "asc"))
+        .select("id", "name")
+        .query()
+    )
+
+    rows = con.execute(q, p).fetchall()
+    assert [tuple(r) for r in rows] == [(2, "Micah"), (3, "Mike")]
+    assert p == ("Mi%", 30)
+
+
 def test_range_clause_runs_on_sqlite() -> None:
     con = _conn()
     con.executescript("""
@@ -415,6 +448,77 @@ def test_update_with_mapping_runs_on_sqlite() -> None:
 
     rows = con.execute("SELECT id, name FROM users ORDER BY id").fetchall()
     assert [tuple(r) for r in rows] == [(1, "Old1"), (2, "Updated")]
+
+
+def test_update_with_chained_where_runs_on_sqlite() -> None:
+    con = _conn()
+    con.executescript("""
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            age INTEGER NOT NULL
+        );
+        """)
+    con.executemany(
+        "INSERT INTO users (id, name, age) VALUES (?, ?, ?)",
+        [
+            (1, "Miki", 22),
+            (2, "Micah", 35),
+            (3, "Mike", 31),
+            (4, "Bob", 44),
+        ],
+    )
+
+    q, p = (
+        table("users")
+        .where(lambda users: users.name.like(param("Mi%")))
+        .where(lambda users: users.age >= param(30))
+        .update({"name": "Matched"})
+        .query()
+    )
+
+    con.execute(q, p)
+    rows = con.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    assert [tuple(r) for r in rows] == [
+        (1, "Miki"),
+        (2, "Matched"),
+        (3, "Matched"),
+        (4, "Bob"),
+    ]
+    assert p == ("Matched", "Mi%", 30)
+
+
+def test_delete_with_chained_where_runs_on_sqlite() -> None:
+    con = _conn()
+    con.executescript("""
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            age INTEGER NOT NULL
+        );
+        """)
+    con.executemany(
+        "INSERT INTO users (id, name, age) VALUES (?, ?, ?)",
+        [
+            (1, "Miki", 22),
+            (2, "Micah", 35),
+            (3, "Mike", 31),
+            (4, "Bob", 44),
+        ],
+    )
+
+    q, p = (
+        table("users")
+        .where(lambda users: users.name.like(param("Mi%")))
+        .where(lambda users: users.age >= param(30))
+        .delete()
+        .query()
+    )
+
+    con.execute(q, p)
+    rows = con.execute("SELECT id, name FROM users ORDER BY id").fetchall()
+    assert [tuple(r) for r in rows] == [(1, "Miki"), (4, "Bob")]
+    assert p == ("Mi%", 30)
 
 
 def test_exists_subquery_runs_on_sqlite() -> None:

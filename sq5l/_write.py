@@ -56,11 +56,7 @@ class Updated:
         from ._query_renderer import _context_from_refs, _render_value, build_query
         from ._value import ColumnName
 
-        where_expr = (
-            self.source.condition if hasattr(self.source, "condition") else None
-        )
-        base_source = self.source.prev if hasattr(self.source, "prev") else self.source
-        node = build_query(base_source)
+        node = build_query(self.source)
         context = _context_from_refs(node.table_refs)
         params: list[SqlParam] = []
 
@@ -106,8 +102,8 @@ class Updated:
             if join.on is not None:
                 conditions.append(_render_value(join.on, context, params))
 
-        if where_expr is not None:
-            conditions.append(_render_value(where_expr, context, params))
+        for where_expr in node.where_exprs:
+            conditions.append(f"({_render_value(where_expr, context, params)})")
 
         from_clause = ""
         if node.joins:
@@ -123,6 +119,33 @@ class Updated:
             f"SET {', '.join(assignments)}"
             f"{from_clause}{where_clause};"
         )
+        return sql, tuple(params)
+
+
+@dataclass(frozen=True)
+class Deleted:
+    source: Any
+
+    def query(self) -> tuple[str, tuple[SqlParam, ...]]:
+        from ._query_renderer import _context_from_refs, _render_value, build_query
+
+        node = build_query(self.source)
+        context = _context_from_refs(node.table_refs)
+        params: list[SqlParam] = []
+
+        conditions: list[str] = []
+        for join in node.joins:
+            if join.on is not None:
+                conditions.append(_render_value(join.on, context, params))
+
+        for where_expr in node.where_exprs:
+            conditions.append(f"({_render_value(where_expr, context, params)})")
+
+        where_clause = ""
+        if conditions:
+            where_clause = f" WHERE {' AND '.join(conditions)}"
+
+        sql = f"DELETE FROM {node.source_sql}{where_clause};"
         return sql, tuple(params)
 
 
@@ -162,6 +185,11 @@ class CanUpdate:
             return Updated(self, pair_exprs=pairs)
 
         raise TypeError("unsupported update arguments")
+
+
+class CanDelete:
+    def delete(self) -> Deleted:
+        return Deleted(self)
 
 
 def _resolve_with_source_context(source: Any, expr: Any) -> Any:

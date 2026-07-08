@@ -6,14 +6,27 @@ from typing import Any, Callable, Protocol, overload
 
 from ._select import CanExists, CanGroupBy, CanOrder, CanRange, CanSelect
 from ._value import CanBeValue, TableName
-from ._write import CanUpdate
+from ._write import CanDelete, CanUpdate
 
 
 @dataclass(frozen=True)
-class Where(CanOrder, CanRange, CanSelect, CanGroupBy, CanExists, CanUpdate):
+class Where(CanOrder, CanRange, CanSelect, CanGroupBy, CanExists, CanUpdate, CanDelete):
     prev: Any
     condition: CanBeValue
     table_names: tuple[str, ...]
+
+    def where(self, condition: Callable[..., CanBeValue]) -> Where:
+        # Keep this implementation local to Where.
+        # Sharing via CanWhere on this dataclass can couple constructor/field behavior,
+        # while Where(self, condition, table_names) must stay stable for chain building.
+        table_name_objects: dict[str, TableName] = {
+            str(name): TableName(str(name)) for name in self.table_names
+        }
+        return Where(
+            self,
+            call_with_table_context(condition, table_name_objects),
+            tuple(str(name) for name in self.table_names),
+        )
 
 
 class WhereCondition[TableNames: str](Protocol):
