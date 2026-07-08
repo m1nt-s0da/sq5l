@@ -226,7 +226,7 @@ def _render_query_internal(
         parts.append(f"ORDER BY {order_sql}")
 
     if query.limit is not None:
-        parts.append(f"OFFSET {query.offset} LIMIT {query.limit}")
+        parts.append(f"LIMIT {query.limit} OFFSET {query.offset}")
 
     return " ".join(parts) + ";", params
 

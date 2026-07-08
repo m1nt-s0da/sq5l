@@ -36,7 +36,7 @@
 
 - 括弧は保守的に付与されるため、過剰な括弧が出る場合があります。
 - exists で select を明示しない場合は SELECT 1 を出力します。
-- range は limit がある場合にのみ OFFSET/LIMIT を出力します。
+- range は limit がある場合にのみ LIMIT/OFFSET を出力します。
 - insert の ignore は現在 INSERT IGNORE として出力されます（INSERT OR IGNORE ではありません）。
 
 ## 現在使える JOIN

@@ -49,6 +49,37 @@ def test_select_where_order_range_runs_on_sqlite() -> None:
     assert [tuple(r) for r in rows] == [(2, "Micah")]
 
 
+def test_range_clause_runs_on_sqlite() -> None:
+    con = _conn()
+    con.executescript("""
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        """)
+    con.executemany(
+        "INSERT INTO users (id, name, created_at) VALUES (?, ?, ?)",
+        [
+            (1, "A", 100),
+            (2, "B", 200),
+            (3, "C", 300),
+            (4, "D", 400),
+        ],
+    )
+
+    q, p = (
+        table("users")
+        .order(("created_at", "asc"))
+        .range(offset=1, limit=2)
+        .select("id", "name")
+        .query()
+    )
+
+    rows = con.execute(q, p).fetchall()
+    assert [tuple(r) for r in rows] == [(2, "B"), (3, "C")]
+
+
 def test_insert_select_runs_on_sqlite() -> None:
     con = _conn()
     con.executescript("""
