@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+SqlLiteral = str | bytes | int | float | bool | None
+
 
 class CanAggregate:
     def count(self, *, distinct: bool = False) -> FuncCall:
@@ -45,56 +47,48 @@ class CanBeValue(CanAggregate):
     def __add__(self, other: CanBeValue) -> Op2:
         return Op2("add", self, _require_value(other, "add"))
 
+    def __radd__(self, other: SqlLiteral) -> Op2:
+        return Op2("add", _require_value(other, "add"), self)
+
     def __sub__(self, other: CanBeValue) -> Op2:
         return Op2("sub", self, _require_value(other, "sub"))
+
+    def __rsub__(self, other: SqlLiteral) -> Op2:
+        return Op2("sub", _require_value(other, "sub"), self)
 
     def __mul__(self, other: CanBeValue) -> Op2:
         return Op2("mul", self, _require_value(other, "mul"))
 
+    def __rmul__(self, other: SqlLiteral) -> Op2:
+        return Op2("mul", _require_value(other, "mul"), self)
+
     def __floordiv__(self, other: CanBeValue) -> Op2:
         return Op2("div", self, _require_value(other, "div"))
+
+    def __rfloordiv__(self, other: SqlLiteral) -> Op2:
+        return Op2("div", _require_value(other, "div"), self)
 
     def __and__(self, other: CanBeValue) -> Op2:
         return Op2("and", self, _require_value(other, "and"))
 
+    def __rand__(self, other: SqlLiteral) -> Op2:
+        return Op2("and", _require_value(other, "and"), self)
+
     def __or__(self, other: CanBeValue) -> Op2:
         return Op2("or", self, _require_value(other, "or"))
+
+    def __ror__(self, other: SqlLiteral) -> Op2:
+        return Op2("or", _require_value(other, "or"), self)
 
     def __eq__(self, other: object) -> Any:
         if other is None:
             return Op1("is_null", self)
-        if not isinstance(other, CanBeValue):
-            raise TypeError(
-                "only CanBeValue or None can be compared; wrap raw values with param()"
-            )
-        return Op2("eq", self, other)
-
-    def __req__(self, other: object) -> Any:
-        if other is None:
-            return Op1("is_null", self)
-        if not isinstance(other, CanBeValue):
-            raise TypeError(
-                "only CanBeValue or None can be compared; wrap raw values with param()"
-            )
-        return Op2("eq", other, self)
+        return Op2("eq", self, _require_value(other, "eq"))
 
     def __ne__(self, other: object) -> Any:
         if other is None:
             return Op1("is_not_null", self)
-        if not isinstance(other, CanBeValue):
-            raise TypeError(
-                "only CanBeValue or None can be compared; wrap raw values with param()"
-            )
-        return Op2("ne", self, other)
-
-    def __rne__(self, other: object) -> Any:
-        if other is None:
-            return Op1("is_not_null", self)
-        if not isinstance(other, CanBeValue):
-            raise TypeError(
-                "only CanBeValue or None can be compared; wrap raw values with param()"
-            )
-        return Op2("ne", other, self)
+        return Op2("ne", self, _require_value(other, "ne"))
 
     def __lt__(self, other: CanBeValue) -> Op2:
         return Op2("lt", self, _require_value(other, "lt"))
@@ -291,6 +285,10 @@ class TableName:
 
 
 def _require_value(other: object, op: str) -> CanBeValue:
+    from ._param import Param
+
     if isinstance(other, CanBeValue):
         return other
-    raise TypeError(f"{op} expects CanBeValue; wrap raw values with param()")
+    if isinstance(other, (str, bytes, int, float, bool)) or other is None:
+        return Param(other)
+    raise TypeError(f"{op} expects a SQL value expression or literal")

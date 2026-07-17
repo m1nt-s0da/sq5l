@@ -6,7 +6,7 @@
 - None 比較のみ特別扱いです:
   - value == None => IS NULL
   - value != None => IS NOT NULL
-- None 以外の生値は param でラップしてください。
+- None 以外の生値はそのまま渡すと自動で SQL パラメータ化されます。
 
 ## 別名ルール
 
@@ -59,5 +59,4 @@
 ## 現在の公開 API
 
 - table
-- param
 - asterisk

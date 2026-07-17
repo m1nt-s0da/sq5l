@@ -1,7 +1,7 @@
 import sqlite3
 import pytest
 
-from sq5l import asterisk, param, table
+from sq5l import asterisk, table
 
 SQLITE_SUPPORTS_RIGHT_FULL = sqlite3.sqlite_version_info >= (3, 39, 0)
 
@@ -36,8 +36,8 @@ def test_select_where_order_range_runs_on_sqlite() -> None:
     q, p = (
         table("users")
         .where(
-            lambda users: users.name.like(param("Mic%"))
-            & (users.age >= param(30))
+            lambda users: users.name.like("Mic%")
+            & (users.age >= 30)
             & (users.deleted_at == None)
         )
         .order(("created_at", "desc"))
@@ -73,11 +73,9 @@ def test_where_callback_supports_and_or() -> None:
         table("users")
         .where(
             lambda users: (
-                users.name.like(param("Mi%"))
-                and users.age >= param(30)
-                and users.age < param(40)
+                users.name.like("Mi%") and users.age >= 30 and users.age < 40
             )
-            or (users.deleted_at == None and users.age < param(25))
+            or (users.deleted_at == None and users.age < 25)
         )
         .order(("id", "asc"))
         .select("id", "name")
@@ -110,8 +108,8 @@ def test_chained_where_runs_on_sqlite() -> None:
 
     q, p = (
         table("users")
-        .where(lambda users: users.name.like(param("Mi%")))
-        .where(lambda users: users.age >= param(30))
+        .where(lambda users: users.name.like("Mi%"))
+        .where(lambda users: users.age >= 30)
         .order(("id", "asc"))
         .select("id", "name")
         .query()
@@ -168,9 +166,7 @@ def test_insert_select_runs_on_sqlite() -> None:
         table("teen_users")
         .insert(
             ("name", "age"),
-            table("users")
-            .where(lambda users: users.age < param(20))
-            .select("name", "age"),
+            table("users").where(lambda users: users.age < 20).select("name", "age"),
         )
         .query()
     )
@@ -197,7 +193,7 @@ def test_update_with_scalar_subquery_runs_on_sqlite() -> None:
 
     q, p = (
         table("users")
-        .where(lambda users: users.id < param(10))
+        .where(lambda users: users.id < 10)
         .update(
             "name",
             lambda users: table("user_update_batch", as_="b")
@@ -227,7 +223,7 @@ def test_derived_table_alias_runs_on_sqlite() -> None:
         .group_by(lambda o: o.user_id)
         .select(lambda o: o.user_id, lambda: asterisk.count().as_("order_count"))
         .as_("t")
-        .where(lambda t: t.order_count >= param(3))
+        .where(lambda t: t.order_count >= 3)
         .select(lambda t: t.user_id, lambda t: t.order_count)
         .query()
     )
@@ -254,7 +250,7 @@ def test_join_select_runs_on_sqlite() -> None:
     q, p = (
         table("users", as_="u")
         .inner_join(table("orders", as_="o"), on=lambda u, o: o.user_id == u.id)
-        .where(lambda o: o.total >= param(3000))
+        .where(lambda o: o.total >= 3000)
         .select(lambda u: u.id, lambda u: u.name, lambda o: o.id.as_("order_id"))
         .query()
     )
@@ -425,8 +421,8 @@ def test_group_by_having_runs_on_sqlite() -> None:
         .where(lambda payments: payments.done_at != None)
         .group_by(
             "user_id",
-            having=lambda payments: (asterisk.count() >= param(3))
-            & (payments.amount.avg() >= param(2000)),
+            having=lambda payments: (asterisk.count() >= 3)
+            & (payments.amount.avg() >= 2000),
         )
         .select(
             "user_id",
@@ -480,7 +476,7 @@ def test_update_with_mapping_runs_on_sqlite() -> None:
 
     q, p = (
         table("users")
-        .where(lambda users: users.id == param(2))
+        .where(lambda users: users.id == 2)
         .update({"name": "Updated"})
         .query()
     )
@@ -511,8 +507,8 @@ def test_update_with_chained_where_runs_on_sqlite() -> None:
 
     q, p = (
         table("users")
-        .where(lambda users: users.name.like(param("Mi%")))
-        .where(lambda users: users.age >= param(30))
+        .where(lambda users: users.name.like("Mi%"))
+        .where(lambda users: users.age >= 30)
         .update({"name": "Matched"})
         .query()
     )
@@ -549,8 +545,8 @@ def test_delete_with_chained_where_runs_on_sqlite() -> None:
 
     q, p = (
         table("users")
-        .where(lambda users: users.name.like(param("Mi%")))
-        .where(lambda users: users.age >= param(30))
+        .where(lambda users: users.name.like("Mi%"))
+        .where(lambda users: users.age >= 30)
         .delete()
         .query()
     )
@@ -580,7 +576,7 @@ def test_exists_subquery_runs_on_sqlite() -> None:
         table("users", as_="u")
         .where(
             lambda u: table("orders", as_="o")
-            .where(lambda o: (o.user_id == u.id) & (o.total >= param(3000)))
+            .where(lambda o: (o.user_id == u.id) & (o.total >= 3000))
             .exists()
         )
         .select(lambda u: u.id, lambda u: u.name)
@@ -603,12 +599,12 @@ def test_scalar_string_functions_run_on_sqlite() -> None:
 
     q, p = (
         table("users")
-        .where(lambda users: users.id == param(1))
+        .where(lambda users: users.id == 1)
         .select(
             lambda users: users.name.trim().lower().as_("normalized_name"),
             lambda users: users.name.length().as_("name_len"),
-            lambda users: users.name.replace(param("M"), param("X")).as_("replaced"),
-            lambda users: users.name.substr(param(3), param(2)).as_("middle"),
+            lambda users: users.name.replace("M", "X").as_("replaced"),
+            lambda users: users.name.substr(3, 2).as_("middle"),
         )
         .query()
     )
@@ -629,15 +625,13 @@ def test_scalar_numeric_and_null_functions_run_on_sqlite() -> None:
 
     q, p = (
         table("metrics")
-        .where(lambda metrics: metrics.id == param(1))
+        .where(lambda metrics: metrics.id == 1)
         .select(
             lambda metrics: metrics.value.abs().as_("abs_value"),
-            lambda metrics: metrics.value.round(param(1)).as_("rounded"),
-            lambda metrics: metrics.note.ifnull(param("n/a")).as_("note_fallback"),
-            lambda metrics: metrics.note.coalesce(param("x"), param("y")).as_(
-                "coalesced"
-            ),
-            lambda metrics: metrics.note.nullif(param("zz")).as_("nullif_note"),
+            lambda metrics: metrics.value.round(1).as_("rounded"),
+            lambda metrics: metrics.note.ifnull("n/a").as_("note_fallback"),
+            lambda metrics: metrics.note.coalesce("x", "y").as_("coalesced"),
+            lambda metrics: metrics.note.nullif("zz").as_("nullif_note"),
         )
         .query()
     )
@@ -676,9 +670,7 @@ def test_extended_aggregate_functions_run_on_sqlite() -> None:
             lambda payments: payments.amount.min().as_("min_amount"),
             lambda payments: payments.amount.max().as_("max_amount"),
             lambda payments: payments.amount.total().as_("total_amount"),
-            lambda payments: payments.category.group_concat(param("|")).as_(
-                "categories"
-            ),
+            lambda payments: payments.category.group_concat("|").as_("categories"),
         )
         .query()
     )

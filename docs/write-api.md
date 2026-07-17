@@ -13,7 +13,7 @@ q, p = table("users").insert({"name": "Mike", "age": 15}).query()
 ```python
 q, p = table("teen_users").insert(
     ("name", "age"),
-    table("users").where(lambda users: users.age < param(20)).select("name", "age"),
+    table("users").where(lambda users: users.age < 20).select("name", "age"),
 ).query()
 ```
 
@@ -34,7 +34,7 @@ update は where の後で利用できます。join チェインでも where を
 ```python
 q, p = (
     table("users")
-    .where(lambda users: users.id == param(10))
+    .where(lambda users: users.id == 10)
     .update({"name": "Michael"})
     .query()
 )
@@ -45,7 +45,7 @@ q, p = (
 ```python
 q, p = (
     table("users")
-    .where(lambda users: users.id < param(10))
+    .where(lambda users: users.id < 10)
     .update(
         "name",
         lambda users: table("user_update_batch", as_="b")
@@ -62,10 +62,10 @@ q, p = (
 q, p = (
     table("users")
     .inner_join("batch", on=lambda users, batch: users.id == batch.user_id)
-    .where(lambda users: users.gender == param("male"))
+    .where(lambda users: users.gender == "male")
     .update(
         lambda users, batch: (users.name, batch.name),
-        lambda users, batch: (users.age, batch.age + param(1)),
+        lambda users, batch: (users.age, batch.age + 1),
     )
     .query()
 )
