@@ -299,10 +299,16 @@ def test_join_on_callback_supports_subquery_in_and_not_in() -> None:
 
 def test_bitwise_predicates_are_not_supported() -> None:
     with pytest.raises(TypeError):
-        table("users").where(lambda users: users.name.like("Mic%") & (users.age >= 30))
+        table("users").where(
+            lambda users: users.name.like("Mic%")
+            & (users.age >= 30)  # pyright: ignore[reportOperatorIssue]
+        )
 
     with pytest.raises(TypeError):
-        table("users").where(lambda users: (users.age >= 30) | (users.age < 10))
+        table("users").where(
+            lambda users: (users.age >= 30)
+            | (users.age < 10)  # pyright: ignore[reportOperatorIssue]
+        )
 
 
 def test_chained_where_runs_on_sqlite() -> None:

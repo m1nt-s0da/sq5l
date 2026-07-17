@@ -40,28 +40,28 @@ class TableAs[T: str](
         object.__setattr__(self, "alias", alias)
 
     def inner_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
         return Joined(self, other, _resolve_join_on(self, other, on), "INNER JOIN")
 
     def left_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
         return Joined(self, other, _resolve_join_on(self, other, on), "LEFT JOIN")
 
     def right_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
         return Joined(self, other, _resolve_join_on(self, other, on), "RIGHT JOIN")
 
     def full_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
@@ -92,28 +92,28 @@ class Table[T: str](
         return TableAs(self, alias)
 
     def inner_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
         return Joined(self, other, _resolve_join_on(self, other, on), "INNER JOIN")
 
     def left_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
         return Joined(self, other, _resolve_join_on(self, other, on), "LEFT JOIN")
 
     def right_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
         return Joined(self, other, _resolve_join_on(self, other, on), "RIGHT JOIN")
 
     def full_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
@@ -142,28 +142,28 @@ class Joined(CanWhere[str], CanOrder, CanRange, CanSelect, CanGroupBy, CanExists
         object.__setattr__(self, "join_kind", join_kind)
 
     def inner_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
         return Joined(self, other, _resolve_join_on(self, other, on), "INNER JOIN")
 
     def left_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
         return Joined(self, other, _resolve_join_on(self, other, on), "LEFT JOIN")
 
     def right_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
         return Joined(self, other, _resolve_join_on(self, other, on), "RIGHT JOIN")
 
     def full_join(
-        self, other: str | Table | TableAs, *, on: Callable[..., Any]
+        self, other: str | Table | TableAs, *, on: Callable[..., object]
     ) -> Joined:
         if isinstance(other, str):
             other = Table(other)
@@ -190,7 +190,9 @@ class DerivedTable[T: str](
         object.__setattr__(self, "name", alias)
 
 
-def _resolve_join_on(prev: Any, right: Table | TableAs, on: Callable[..., Any]) -> Any:
+def _resolve_join_on(
+    prev: Any, right: Table | TableAs, on: Callable[..., object]
+) -> Any:
     from ._value import TableName
     from ._where import call_with_table_context
 

@@ -5,11 +5,13 @@ import inspect
 from dataclasses import dataclass
 from inspect import Parameter, signature
 import linecache
-from typing import Any, Callable, Protocol, overload
+from typing import Any, Callable, Protocol, TypeVar, overload
 
 from ._select import CanExists, CanGroupBy, CanOrder, CanRange, CanSelect
 from ._value import CanBeValue, TableName
 from ._write import CanDelete, CanUpdate
+
+ResolvedT = TypeVar("ResolvedT")
 
 
 @dataclass(frozen=True)
@@ -18,7 +20,7 @@ class Where(CanOrder, CanRange, CanSelect, CanGroupBy, CanExists, CanUpdate, Can
     condition: CanBeValue
     table_names: tuple[str, ...]
 
-    def where(self, condition: Callable[..., CanBeValue]) -> Where:
+    def where(self, condition: Callable[..., object]) -> Where:
         # Keep this implementation local to Where.
         # Sharing via CanWhere on this dataclass can couple constructor/field behavior,
         # while Where(self, condition, table_names) must stay stable for chain building.
@@ -33,7 +35,7 @@ class Where(CanOrder, CanRange, CanSelect, CanGroupBy, CanExists, CanUpdate, Can
 
 
 class WhereCondition[TableNames: str](Protocol):
-    def __call__(self, **kwargs: TableName) -> CanBeValue: ...
+    def __call__(self, **kwargs: TableName) -> object: ...
 
 
 @dataclass(frozen=True)
@@ -41,12 +43,12 @@ class CanWhere[TableNames: str]:
     table_names: tuple[TableNames, ...]
 
     @overload
-    def where(self, condition: Callable[[TableName], CanBeValue]) -> Where: ...
+    def where(self, condition: Callable[[TableName], object]) -> Where: ...
 
     @overload
     def where(self, condition: WhereCondition[TableNames]) -> Where: ...
 
-    def where(self, condition: Callable[..., CanBeValue]) -> Where:
+    def where(self, condition: Callable[..., object]) -> Where:
         table_name_objects: dict[str, TableName] = {
             str(name): TableName(str(name)) for name in self.table_names
         }
@@ -57,7 +59,19 @@ class CanWhere[TableNames: str]:
         )
 
 
-def call_with_table_context(func: Any, context: dict[str, TableName]) -> Any:
+@overload
+def call_with_table_context(
+    func: Callable[..., ResolvedT], context: dict[str, TableName]
+) -> ResolvedT: ...
+
+
+@overload
+def call_with_table_context(
+    func: ResolvedT, context: dict[str, TableName]
+) -> ResolvedT: ...
+
+
+def call_with_table_context(func: object, context: dict[str, TableName]) -> object:
     if not callable(func):
         return func
 

@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Any, Literal, Protocol, TypeAlias, cast, runtime_checkable
 
 SqlLiteral = str | bytes | int | float | bool | None
+
+
+@runtime_checkable
+class QuerySource(Protocol):
+    def query(self) -> tuple[str, tuple[object, ...]]: ...
+
+
+ValueOperand: TypeAlias = "CanBeValue | SqlLiteral"
+InOperand: TypeAlias = "CanBeValue | QuerySource | Iterable[ValueOperand]"
+PredicateExpr: TypeAlias = object
 
 
 class CanAggregate:
@@ -25,7 +36,7 @@ class CanAggregate:
     def total(self) -> FuncCall:
         return FuncCall("total", (cast(CanBeValue, self),))
 
-    def group_concat(self, separator: CanBeValue | None = None) -> FuncCall:
+    def group_concat(self, separator: ValueOperand | None = None) -> FuncCall:
         value = cast(CanBeValue, self)
         if separator is None:
             return FuncCall("group_concat", (value,))
@@ -44,25 +55,25 @@ class CanBeValue(CanAggregate):
     def __pos__(self) -> Op1:
         return Op1("pos", self)
 
-    def __add__(self, other: CanBeValue) -> Op2:
+    def __add__(self, other: ValueOperand) -> Op2:
         return Op2("add", self, _require_value(other, "add"))
 
     def __radd__(self, other: SqlLiteral) -> Op2:
         return Op2("add", _require_value(other, "add"), self)
 
-    def __sub__(self, other: CanBeValue) -> Op2:
+    def __sub__(self, other: ValueOperand) -> Op2:
         return Op2("sub", self, _require_value(other, "sub"))
 
     def __rsub__(self, other: SqlLiteral) -> Op2:
         return Op2("sub", _require_value(other, "sub"), self)
 
-    def __mul__(self, other: CanBeValue) -> Op2:
+    def __mul__(self, other: ValueOperand) -> Op2:
         return Op2("mul", self, _require_value(other, "mul"))
 
     def __rmul__(self, other: SqlLiteral) -> Op2:
         return Op2("mul", _require_value(other, "mul"), self)
 
-    def __floordiv__(self, other: CanBeValue) -> Op2:
+    def __floordiv__(self, other: ValueOperand) -> Op2:
         return Op2("div", self, _require_value(other, "div"))
 
     def __rfloordiv__(self, other: SqlLiteral) -> Op2:
@@ -78,25 +89,25 @@ class CanBeValue(CanAggregate):
             return Op1("is_not_null", self)
         return Op2("ne", self, _require_value(other, "ne"))
 
-    def __lt__(self, other: CanBeValue) -> Op2:
+    def __lt__(self, other: ValueOperand) -> Op2:
         return Op2("lt", self, _require_value(other, "lt"))
 
-    def __le__(self, other: CanBeValue) -> Op2:
+    def __le__(self, other: ValueOperand) -> Op2:
         return Op2("le", self, _require_value(other, "le"))
 
-    def __gt__(self, other: CanBeValue) -> Op2:
+    def __gt__(self, other: ValueOperand) -> Op2:
         return Op2("gt", self, _require_value(other, "gt"))
 
-    def __ge__(self, other: CanBeValue) -> Op2:
+    def __ge__(self, other: ValueOperand) -> Op2:
         return Op2("ge", self, _require_value(other, "ge"))
 
-    def like(self, other: CanBeValue) -> Op2:
+    def like(self, other: ValueOperand) -> Op2:
         return Op2("like", self, _require_value(other, "like"))
 
-    def is_(self, other: CanBeValue) -> Op2:
+    def is_(self, other: ValueOperand) -> Op2:
         return Op2("is", self, _require_value(other, "is"))
 
-    def in_(self, other: CanBeValue | Any) -> Op2:
+    def in_(self, other: InOperand) -> Op2:
         return Op2("in", self, _coerce_in_operand(other))
 
     def upper(self) -> FuncCall:
@@ -111,33 +122,35 @@ class CanBeValue(CanAggregate):
     def abs(self) -> FuncCall:
         return FuncCall("abs", (self,))
 
-    def round(self, precision: CanBeValue | None = None) -> FuncCall:
+    def round(self, precision: ValueOperand | None = None) -> FuncCall:
         if precision is None:
             return FuncCall("round", (self,))
         return FuncCall("round", (self, _require_value(precision, "round")))
 
-    def trim(self, chars: CanBeValue | None = None) -> FuncCall:
+    def trim(self, chars: ValueOperand | None = None) -> FuncCall:
         if chars is None:
             return FuncCall("trim", (self,))
         return FuncCall("trim", (self, _require_value(chars, "trim")))
 
-    def ltrim(self, chars: CanBeValue | None = None) -> FuncCall:
+    def ltrim(self, chars: ValueOperand | None = None) -> FuncCall:
         if chars is None:
             return FuncCall("ltrim", (self,))
         return FuncCall("ltrim", (self, _require_value(chars, "ltrim")))
 
-    def rtrim(self, chars: CanBeValue | None = None) -> FuncCall:
+    def rtrim(self, chars: ValueOperand | None = None) -> FuncCall:
         if chars is None:
             return FuncCall("rtrim", (self,))
         return FuncCall("rtrim", (self, _require_value(chars, "rtrim")))
 
-    def replace(self, old: CanBeValue, new: CanBeValue) -> FuncCall:
+    def replace(self, old: ValueOperand, new: ValueOperand) -> FuncCall:
         return FuncCall(
             "replace",
             (self, _require_value(old, "replace"), _require_value(new, "replace")),
         )
 
-    def substr(self, start: CanBeValue, length: CanBeValue | None = None) -> FuncCall:
+    def substr(
+        self, start: ValueOperand, length: ValueOperand | None = None
+    ) -> FuncCall:
         if length is None:
             return FuncCall("substr", (self, _require_value(start, "substr")))
         return FuncCall(
@@ -149,13 +162,13 @@ class CanBeValue(CanAggregate):
             ),
         )
 
-    def ifnull(self, fallback: CanBeValue) -> FuncCall:
+    def ifnull(self, fallback: ValueOperand) -> FuncCall:
         return FuncCall("ifnull", (self, _require_value(fallback, "ifnull")))
 
-    def nullif(self, other: CanBeValue) -> FuncCall:
+    def nullif(self, other: ValueOperand) -> FuncCall:
         return FuncCall("nullif", (self, _require_value(other, "nullif")))
 
-    def coalesce(self, *others: CanBeValue) -> FuncCall:
+    def coalesce(self, *others: ValueOperand) -> FuncCall:
         if not others:
             raise TypeError("coalesce requires at least one fallback value")
         return FuncCall(
@@ -186,7 +199,7 @@ class Op2(CanBeValue):
         "in",
     ]
     left: CanBeValue
-    right: Any
+    right: CanBeValue | ValueList | ScalarSubquery
 
 
 @dataclass(frozen=True, eq=False)
@@ -237,7 +250,7 @@ class AliasedValue:
 
 @dataclass(frozen=True, eq=False)
 class ScalarSubquery(CanBeValue):
-    source: Any
+    source: QuerySource
 
 
 @dataclass(frozen=True)
@@ -247,7 +260,7 @@ class ValueList:
 
 @dataclass(frozen=True, eq=False)
 class ExistsExpr(CanBeValue):
-    source: Any
+    source: QuerySource
 
 
 class Asterisk(CanBeValue):
@@ -285,9 +298,11 @@ def _require_value(other: object, op: str) -> CanBeValue:
     raise TypeError(f"{op} expects a SQL value expression or literal")
 
 
-def _coerce_in_operand(other: object) -> CanBeValue | ValueList | ScalarSubquery:
+def _coerce_in_operand(other: InOperand) -> CanBeValue | ValueList | ScalarSubquery:
     if isinstance(other, CanBeValue):
         return other
+    if isinstance(other, QuerySource):
+        return ScalarSubquery(other)
     if isinstance(other, (list, tuple, set, frozenset, range)):
         return ValueList(tuple(_require_value(value, "in") for value in other))
-    return ScalarSubquery(other)
+    return ScalarSubquery(cast(QuerySource, other))

@@ -6,14 +6,14 @@ from typing import Any, Callable, Literal
 from ._value import TableName
 
 OrderDirection = Literal["asc", "desc"]
-SelectExpr = Callable[..., Any]
-HavingExpr = Callable[..., Any]
+SelectExpr = Callable[..., object]
+HavingExpr = Callable[..., object]
 SqlParam = str | int | float | bool | None
 
 
 @dataclass(frozen=True)
 class OrderItem:
-    expr: str | Any
+    expr: str | object
     direction: OrderDirection
 
 
@@ -74,8 +74,8 @@ class Range:
 @dataclass(frozen=True)
 class Grouped:
     prev: Any
-    columns: tuple[str | Any, ...]
-    having: Any | None = None
+    columns: tuple[str | object, ...]
+    having: object | None = None
     table_names: tuple[str, ...] = ()
 
     def order(self, *items: tuple[str | SelectExpr, OrderDirection]) -> Ordered:
@@ -103,7 +103,7 @@ class Grouped:
 @dataclass(frozen=True)
 class Selected:
     prev: Any
-    columns: tuple[str | Any, ...]
+    columns: tuple[str | object, ...]
     distinct: bool = False
     table_names: tuple[str, ...] = ()
 
@@ -113,6 +113,9 @@ class Selected:
         query = build_query(self)
         sql, params = render_query(query)
         return sql, tuple(params)
+
+    def __contains__(self, item: object) -> bool:
+        raise TypeError("subquery membership is only supported inside callbacks")
 
     def as_(self, alias: str) -> Any:
         from ._table import DerivedTable
@@ -180,7 +183,7 @@ def _table_context_from_names(table_names: tuple[str, ...]) -> dict[str, TableNa
     return {name: TableName(name) for name in table_names}
 
 
-def _resolve_expr(expr: Any, table_names: tuple[str, ...]) -> Any:
+def _resolve_expr(expr: object, table_names: tuple[str, ...]) -> object:
     if expr is None or not callable(expr):
         return expr
     from ._where import call_with_table_context
@@ -190,7 +193,7 @@ def _resolve_expr(expr: Any, table_names: tuple[str, ...]) -> Any:
 
 def _resolve_columns(
     columns: tuple[str | SelectExpr, ...], table_names: tuple[str, ...]
-) -> tuple[str | Any, ...]:
+) -> tuple[str | object, ...]:
     return tuple(
         _resolve_expr(c, table_names) if not isinstance(c, str) else c for c in columns
     )
