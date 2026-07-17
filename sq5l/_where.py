@@ -235,6 +235,8 @@ def _normalize_constant(value: Any) -> Any:
 def _callback_helpers() -> dict[str, Callable[..., Any]]:
     return {
         "_sq5l_and": _sq5l_and,
+        "_sq5l_compare": _sq5l_compare,
+        "_sq5l_not": _sq5l_not,
         "_sq5l_or": _sq5l_or,
     }
 
@@ -245,10 +247,65 @@ def _sq5l_and(left: CanBeValue, right: CanBeValue) -> CanBeValue:
     return Op2("and", left, right)
 
 
+def _sq5l_compare(left: Any, operator: str, right: Any) -> Any:
+    from ._value import Op1, Op2, _require_value
+
+    if operator == "eq":
+        return left == right
+    if operator == "ne":
+        return left != right
+    if operator == "lt":
+        return left < right
+    if operator == "le":
+        return left <= right
+    if operator == "gt":
+        return left > right
+    if operator == "ge":
+        return left >= right
+    if operator == "in":
+        return left.in_(right)
+    if operator == "not_in":
+        return _sq5l_not(left.in_(right))
+    if operator == "is":
+        if right is None:
+            return Op1("is_null", left)
+        return Op2("is", left, _require_value(right, "is"))
+    if operator == "is_not":
+        if right is None:
+            return Op1("is_not_null", left)
+        return _sq5l_not(Op2("is", left, _require_value(right, "is")))
+    raise TypeError(f"unsupported compare operator: {operator}")
+
+
+def _sq5l_not(value: CanBeValue) -> CanBeValue:
+    from ._value import Op1
+
+    return Op1("invert", value)
+
+
 def _sq5l_or(left: CanBeValue, right: CanBeValue) -> CanBeValue:
     from ._value import Op2
 
     return Op2("or", left, right)
+
+
+def _compare_operator_name(operator: ast.cmpop) -> str:
+    mapping: dict[type[ast.cmpop], str] = {
+        ast.Eq: "eq",
+        ast.NotEq: "ne",
+        ast.Lt: "lt",
+        ast.LtE: "le",
+        ast.Gt: "gt",
+        ast.GtE: "ge",
+        ast.In: "in",
+        ast.NotIn: "not_in",
+        ast.Is: "is",
+        ast.IsNot: "is_not",
+    }
+    for operator_type, name in mapping.items():
+        if isinstance(operator, operator_type):
+            return name
+    raise TypeError(f"unsupported compare operator: {type(operator)!r}")
 
 
 class _CallbackAstTransformer(ast.NodeTransformer):
@@ -275,7 +332,12 @@ class _CallbackAstTransformer(ast.NodeTransformer):
 
         if isinstance(node.op, ast.Not):
             return ast.copy_location(
-                ast.UnaryOp(op=ast.Invert(), operand=node.operand), node
+                ast.Call(
+                    func=ast.Name(id="_sq5l_not", ctx=ast.Load()),
+                    args=[node.operand],
+                    keywords=[],
+                ),
+                node,
             )
         return node
 
@@ -283,13 +345,20 @@ class _CallbackAstTransformer(ast.NodeTransformer):
         node = self.generic_visit(node)
         assert isinstance(node, ast.Compare)
 
-        if len(node.ops) == 1:
-            return node
-
         pieces: list[ast.AST] = []
         left = node.left
         for operator, right in zip(node.ops, node.comparators):
-            pieces.append(ast.Compare(left=left, ops=[operator], comparators=[right]))
+            pieces.append(
+                ast.Call(
+                    func=ast.Name(id="_sq5l_compare", ctx=ast.Load()),
+                    args=[
+                        left,
+                        ast.Constant(value=_compare_operator_name(operator)),
+                        right,
+                    ],
+                    keywords=[],
+                )
+            )
             left = right
 
         expression = pieces[0]

@@ -97,9 +97,7 @@ class CanBeValue(CanAggregate):
         return Op2("is", self, _require_value(other, "is"))
 
     def in_(self, other: CanBeValue | Any) -> Op2:
-        if isinstance(other, CanBeValue):
-            return Op2("in", self, other)
-        return Op2("in", self, ScalarSubquery(other))
+        return Op2("in", self, _coerce_in_operand(other))
 
     def upper(self) -> FuncCall:
         return FuncCall("upper", (self,))
@@ -242,6 +240,11 @@ class ScalarSubquery(CanBeValue):
     source: Any
 
 
+@dataclass(frozen=True)
+class ValueList:
+    values: tuple[CanBeValue, ...]
+
+
 @dataclass(frozen=True, eq=False)
 class ExistsExpr(CanBeValue):
     source: Any
@@ -280,3 +283,11 @@ def _require_value(other: object, op: str) -> CanBeValue:
     if isinstance(other, (str, bytes, int, float, bool)) or other is None:
         return Param(other)
     raise TypeError(f"{op} expects a SQL value expression or literal")
+
+
+def _coerce_in_operand(other: object) -> CanBeValue | ValueList | ScalarSubquery:
+    if isinstance(other, CanBeValue):
+        return other
+    if isinstance(other, (list, tuple, set, frozenset, range)):
+        return ValueList(tuple(_require_value(value, "in") for value in other))
+    return ScalarSubquery(other)

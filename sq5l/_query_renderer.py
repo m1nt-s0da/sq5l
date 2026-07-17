@@ -346,6 +346,7 @@ def _render_value(
         Op1,
         Op2,
         ScalarSubquery,
+        ValueList,
     )
 
     if isinstance(value, Param):
@@ -376,6 +377,14 @@ def _render_value(
 
     if isinstance(value, ScalarSubquery):
         return f"( {_render_subquery(value.source, params)} )"
+
+    if isinstance(value, ValueList):
+        if not value.values:
+            raise ValueError("IN list must not be empty")
+        items_sql = ", ".join(
+            _render_value(item, context, params) for item in value.values
+        )
+        return f"({items_sql})"
 
     if isinstance(value, FuncCall):
         if value.name == "count" and value.distinct:

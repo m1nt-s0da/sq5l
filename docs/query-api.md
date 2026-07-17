@@ -22,7 +22,12 @@ table("users").where(lambda users: users.age >= 20)
 
 lambda には、引数名に対応したテーブルオブジェクトが渡されます。
 
-callback 本文は Python AST として解析されるため、`and` / `or` や比較の連鎖をそのまま書けます。
+callback 本文は Python AST として解析されるため、次をそのまま書けます。
+
+- `and` / `or` / `not`
+- 比較の連鎖
+- `in` / `not in`
+- `is None` / `is not None`
 
 ## コールバック評価タイミング
 
@@ -74,12 +79,17 @@ from sq5l import asterisk
 
 ## サブクエリ関連
 
-### in_
+### in / in_
 
 ```python
 .where(lambda users: users.id.in_(
     table("orders").where(lambda orders: orders.total >= 3000).select(lambda orders: orders.user_id)
 ))
+```
+
+```python
+.where(lambda users: users.id in [1, 2, 3])
+.where(lambda users: users.id not in [1, 2, 3])
 ```
 
 ### exists
@@ -89,6 +99,14 @@ from sq5l import asterisk
     .where(lambda o: (o.user_id == u.id) and (o.total >= 3000))
     .exists()
 )
+```
+
+### NULL 判定
+
+```python
+.where(lambda users: users.deleted_at is None)
+.where(lambda users: users.deleted_at is not None)
+.where(lambda users: not (users.age < 20))
 ```
 
 exists で明示的な select がない場合、レンダラは SELECT 1 を出力します。

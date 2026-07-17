@@ -87,6 +87,108 @@ def test_where_callback_supports_and_or() -> None:
     assert p == ("Mi%", 30, 40, 25)
 
 
+def test_where_callback_supports_in_is_and_not() -> None:
+    con = _conn()
+    con.executescript("""
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            age INTEGER NOT NULL,
+            deleted_at TEXT
+        );
+        """)
+    con.executemany(
+        "INSERT INTO users (id, name, age, deleted_at) VALUES (?, ?, ?, ?)",
+        [
+            (1, "Mike", 31, None),
+            (2, "Micah", 35, None),
+            (3, "Miki", 22, None),
+            (4, "Bob", 50, "2024-01-01"),
+        ],
+    )
+
+    q, p = (
+        table("users")
+        .where(
+            lambda users: users.id in [1, 2, 3]
+            and users.deleted_at is None
+            and not (users.age < 30)
+        )
+        .order(("id", "asc"))
+        .select("id", "name")
+        .query()
+    )
+
+    rows = con.execute(q, p).fetchall()
+    assert [tuple(r) for r in rows] == [(1, "Mike"), (2, "Micah")]
+    assert p == (1, 2, 3, 30)
+
+
+def test_where_callback_supports_not_in_and_is_not_none() -> None:
+    con = _conn()
+    con.executescript("""
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            age INTEGER NOT NULL,
+            deleted_at TEXT
+        );
+        """)
+    con.executemany(
+        "INSERT INTO users (id, name, age, deleted_at) VALUES (?, ?, ?, ?)",
+        [
+            (1, "Mike", 31, None),
+            (2, "Micah", 35, None),
+            (3, "Miki", 22, None),
+            (4, "Bob", 50, "2024-01-01"),
+        ],
+    )
+
+    q, p = (
+        table("users")
+        .where(lambda users: users.id not in [1, 2, 3] and users.deleted_at is not None)
+        .select("id", "name")
+        .query()
+    )
+
+    rows = con.execute(q, p).fetchall()
+    assert [tuple(r) for r in rows] == [(4, "Bob")]
+    assert p == (1, 2, 3)
+
+
+def test_join_on_callback_supports_in_not_in_and_not() -> None:
+    con = _conn()
+    con.executescript("""
+        CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, total INTEGER NOT NULL);
+        """)
+    con.executemany(
+        "INSERT INTO users (id, name) VALUES (?, ?)",
+        [(1, "Alice"), (2, "Bob")],
+    )
+    con.executemany(
+        "INSERT INTO orders (id, user_id, total) VALUES (?, ?, ?)",
+        [(10, 1, 5000), (11, 1, 1500), (12, 2, 4000)],
+    )
+
+    q, p = (
+        table("users", as_="u")
+        .inner_join(
+            table("orders", as_="o"),
+            on=lambda u, o: o.user_id == u.id
+            and o.id not in [11]
+            and not (o.total < 3000),
+        )
+        .order((lambda o: o.id, "asc"))
+        .select(lambda u: u.name, lambda o: o.id)
+        .query()
+    )
+
+    rows = con.execute(q, p).fetchall()
+    assert [tuple(r) for r in rows] == [("Alice", 10), ("Bob", 12)]
+    assert p == (11, 3000)
+
+
 def test_bitwise_predicates_are_not_supported() -> None:
     with pytest.raises(TypeError):
         table("users").where(lambda users: users.name.like("Mic%") & (users.age >= 30))
