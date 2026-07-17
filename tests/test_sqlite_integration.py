@@ -49,6 +49,46 @@ def test_select_where_order_range_runs_on_sqlite() -> None:
     assert [tuple(r) for r in rows] == [(2, "Micah")]
 
 
+def test_where_callback_supports_and_or() -> None:
+    con = _conn()
+    con.executescript("""
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            age INTEGER NOT NULL,
+            deleted_at TEXT
+        );
+        """)
+    con.executemany(
+        "INSERT INTO users (id, name, age, deleted_at) VALUES (?, ?, ?, ?)",
+        [
+            (1, "Mike", 31, None),
+            (2, "Micah", 35, None),
+            (3, "Miki", 22, None),
+            (4, "Mike", 50, "2024-01-01"),
+        ],
+    )
+
+    q, p = (
+        table("users")
+        .where(
+            lambda users: (
+                users.name.like(param("Mi%"))
+                and users.age >= param(30)
+                and users.age < param(40)
+            )
+            or (users.deleted_at == None and users.age < param(25))
+        )
+        .order(("id", "asc"))
+        .select("id", "name")
+        .query()
+    )
+
+    rows = con.execute(q, p).fetchall()
+    assert [tuple(r) for r in rows] == [(1, "Mike"), (2, "Micah"), (3, "Miki")]
+    assert p == ("Mi%", 30, 40, 25)
+
+
 def test_chained_where_runs_on_sqlite() -> None:
     con = _conn()
     con.executescript("""

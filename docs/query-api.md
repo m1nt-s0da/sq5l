@@ -22,6 +22,8 @@ table("users").where(lambda users: users.age >= param(20))
 
 lambda には、引数名に対応したテーブルオブジェクトが渡されます。
 
+callback 本文は Python AST として解析されるため、`and` / `or` や比較の連鎖をそのまま書けます。
+
 ## コールバック評価タイミング
 
 コールバック（lambda/関数）は、すべてクエリ構築時に評価されます。

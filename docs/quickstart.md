@@ -7,7 +7,11 @@ from sq5l import table, param
 
 q, p = (
     table("users")
-    .where(lambda users: users.name.like(param("Mic%")) & (users.age >= param(30)) & (users.deleted_at == None))
+    .where(
+        lambda users: (
+            users.name.like(param("Mic%")) and users.age >= param(30)
+        ) or users.deleted_at == None
+    )
     .order(("created_at", "desc"))
     .select("id", "name")
     .query()

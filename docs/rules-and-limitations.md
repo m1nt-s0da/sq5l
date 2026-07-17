@@ -27,6 +27,11 @@
 - cross_join、insert、update のマッピング形式には callback がありません。
 - いずれも query 呼び出し時には再評価されません。
 
+## callback の構文
+
+- where などの callback は Python AST として解析されます。
+- `and` / `or` と比較の連鎖をそのまま使えます。
+
 ## 文字列カラムのショートカット
 
 - select/group_by/order での文字列カラム指定は単一テーブル文脈でのみ使えます。
