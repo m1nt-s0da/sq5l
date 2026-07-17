@@ -156,6 +156,70 @@ def test_where_callback_supports_not_in_and_is_not_none() -> None:
     assert p == (1, 2, 3)
 
 
+def test_where_callback_supports_subquery_in_and_not_in() -> None:
+    con = _conn()
+    con.executescript("""
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            age INTEGER NOT NULL,
+            deleted_at TEXT
+        );
+        CREATE TABLE orders (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            total INTEGER NOT NULL
+        );
+        """)
+    con.executemany(
+        "INSERT INTO users (id, name, age, deleted_at) VALUES (?, ?, ?, ?)",
+        [
+            (1, "Mike", 31, None),
+            (2, "Micah", 35, None),
+            (3, "Miki", 22, None),
+            (4, "Bob", 50, "2024-01-01"),
+        ],
+    )
+    con.executemany(
+        "INSERT INTO orders (id, user_id, total) VALUES (?, ?, ?)",
+        [(10, 1, 5000), (11, 1, 2000), (12, 2, 4000), (13, 4, 500)],
+    )
+
+    q_in, p_in = (
+        table("users")
+        .where(
+            lambda users: users.id
+            in table("orders")
+            .where(lambda orders: orders.total >= 3000)
+            .select(lambda orders: orders.user_id)
+        )
+        .order(("id", "asc"))
+        .select("id", "name")
+        .query()
+    )
+
+    rows_in = con.execute(q_in, p_in).fetchall()
+    assert [tuple(r) for r in rows_in] == [(1, "Mike"), (2, "Micah")]
+    assert p_in == (3000,)
+
+    q_not_in, p_not_in = (
+        table("users")
+        .where(
+            lambda users: users.id
+            not in table("orders")
+            .where(lambda orders: orders.total >= 3000)
+            .select(lambda orders: orders.user_id)
+        )
+        .order(("id", "asc"))
+        .select("id", "name")
+        .query()
+    )
+
+    rows_not_in = con.execute(q_not_in, p_not_in).fetchall()
+    assert [tuple(r) for r in rows_not_in] == [(3, "Miki"), (4, "Bob")]
+    assert p_not_in == (3000,)
+
+
 def test_join_on_callback_supports_in_not_in_and_not() -> None:
     con = _conn()
     con.executescript("""
@@ -187,6 +251,50 @@ def test_join_on_callback_supports_in_not_in_and_not() -> None:
     rows = con.execute(q, p).fetchall()
     assert [tuple(r) for r in rows] == [("Alice", 10), ("Bob", 12)]
     assert p == (11, 3000)
+
+
+def test_join_on_callback_supports_subquery_in_and_not_in() -> None:
+    con = _conn()
+    con.executescript("""
+        CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, total INTEGER NOT NULL);
+        CREATE TABLE allowed_orders (order_id INTEGER PRIMARY KEY);
+        CREATE TABLE blocked_orders (order_id INTEGER PRIMARY KEY);
+        """)
+    con.executemany(
+        "INSERT INTO users (id, name) VALUES (?, ?)",
+        [(1, "Alice"), (2, "Bob")],
+    )
+    con.executemany(
+        "INSERT INTO orders (id, user_id, total) VALUES (?, ?, ?)",
+        [(10, 1, 5000), (11, 1, 1500), (12, 2, 4000), (13, 2, 4500)],
+    )
+    con.executemany(
+        "INSERT INTO allowed_orders (order_id) VALUES (?)",
+        [(10,), (12,), (13,)],
+    )
+    con.executemany(
+        "INSERT INTO blocked_orders (order_id) VALUES (?)",
+        [(13,)],
+    )
+
+    q, p = (
+        table("users", as_="u")
+        .inner_join(
+            table("orders", as_="o"),
+            on=lambda u, o: o.user_id == u.id
+            and o.id in table("allowed_orders", as_="a").select(lambda a: a.order_id)
+            and o.id
+            not in table("blocked_orders", as_="b").select(lambda b: b.order_id),
+        )
+        .order((lambda o: o.id, "asc"))
+        .select(lambda u: u.name, lambda o: o.id)
+        .query()
+    )
+
+    rows = con.execute(q, p).fetchall()
+    assert [tuple(r) for r in rows] == [("Alice", 10), ("Bob", 12)]
+    assert p == ()
 
 
 def test_bitwise_predicates_are_not_supported() -> None:
