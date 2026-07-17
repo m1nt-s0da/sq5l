@@ -37,8 +37,8 @@ def test_select_where_order_range_runs_on_sqlite() -> None:
         table("users")
         .where(
             lambda users: users.name.like("Mic%")
-            & (users.age >= 30)
-            & (users.deleted_at == None)
+            and users.age >= 30
+            and users.deleted_at == None
         )
         .order(("created_at", "desc"))
         .select("id", "name")
@@ -85,6 +85,14 @@ def test_where_callback_supports_and_or() -> None:
     rows = con.execute(q, p).fetchall()
     assert [tuple(r) for r in rows] == [(1, "Mike"), (2, "Micah"), (3, "Miki")]
     assert p == ("Mi%", 30, 40, 25)
+
+
+def test_bitwise_predicates_are_not_supported() -> None:
+    with pytest.raises(TypeError):
+        table("users").where(lambda users: users.name.like("Mic%") & (users.age >= 30))
+
+    with pytest.raises(TypeError):
+        table("users").where(lambda users: (users.age >= 30) | (users.age < 10))
 
 
 def test_chained_where_runs_on_sqlite() -> None:
@@ -422,7 +430,7 @@ def test_group_by_having_runs_on_sqlite() -> None:
         .group_by(
             "user_id",
             having=lambda payments: (asterisk.count() >= 3)
-            & (payments.amount.avg() >= 2000),
+            and (payments.amount.avg() >= 2000),
         )
         .select(
             "user_id",
@@ -576,7 +584,7 @@ def test_exists_subquery_runs_on_sqlite() -> None:
         table("users", as_="u")
         .where(
             lambda u: table("orders", as_="o")
-            .where(lambda o: (o.user_id == u.id) & (o.total >= 3000))
+            .where(lambda o: (o.user_id == u.id) and (o.total >= 3000))
             .exists()
         )
         .select(lambda u: u.id, lambda u: u.name)

@@ -68,7 +68,7 @@ from sq5l import asterisk
 
 .group_by(
     "user_id",
-    having=lambda payments: (asterisk.count() >= 3) & (payments.amount.avg() >= 2000),
+    having=lambda payments: (asterisk.count() >= 3) and (payments.amount.avg() >= 2000),
 )
 ```
 
@@ -86,7 +86,7 @@ from sq5l import asterisk
 
 ```python
 .where(lambda u: table("orders", as_="o")
-    .where(lambda o: (o.user_id == u.id) & (o.total >= 3000))
+    .where(lambda o: (o.user_id == u.id) and (o.total >= 3000))
     .exists()
 )
 ```

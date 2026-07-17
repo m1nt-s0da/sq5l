@@ -68,18 +68,6 @@ class CanBeValue(CanAggregate):
     def __rfloordiv__(self, other: SqlLiteral) -> Op2:
         return Op2("div", _require_value(other, "div"), self)
 
-    def __and__(self, other: CanBeValue) -> Op2:
-        return Op2("and", self, _require_value(other, "and"))
-
-    def __rand__(self, other: SqlLiteral) -> Op2:
-        return Op2("and", _require_value(other, "and"), self)
-
-    def __or__(self, other: CanBeValue) -> Op2:
-        return Op2("or", self, _require_value(other, "or"))
-
-    def __ror__(self, other: SqlLiteral) -> Op2:
-        return Op2("or", _require_value(other, "or"), self)
-
     def __eq__(self, other: object) -> Any:
         if other is None:
             return Op1("is_null", self)

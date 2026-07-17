@@ -107,6 +107,7 @@ def _compile_callback_expression(func: Any) -> Callable[..., Any]:
             expression, inspect.getsourcefile(func) or "<sq5l callback>", "eval"
         )
         namespace = dict(func.__globals__)
+        namespace.update(_callback_helpers())
         closure_vars = inspect.getclosurevars(func)
         namespace.update(closure_vars.globals)
         namespace.update(closure_vars.nonlocals)
@@ -116,6 +117,7 @@ def _compile_callback_expression(func: Any) -> Callable[..., Any]:
         module = ast.Module(body=[target], type_ignores=[])
         ast.fix_missing_locations(module)
         namespace = dict(func.__globals__)
+        namespace.update(_callback_helpers())
         closure_vars = inspect.getclosurevars(func)
         namespace.update(closure_vars.globals)
         namespace.update(closure_vars.nonlocals)
@@ -230,6 +232,25 @@ def _normalize_constant(value: Any) -> Any:
     return value
 
 
+def _callback_helpers() -> dict[str, Callable[..., Any]]:
+    return {
+        "_sq5l_and": _sq5l_and,
+        "_sq5l_or": _sq5l_or,
+    }
+
+
+def _sq5l_and(left: CanBeValue, right: CanBeValue) -> CanBeValue:
+    from ._value import Op2
+
+    return Op2("and", left, right)
+
+
+def _sq5l_or(left: CanBeValue, right: CanBeValue) -> CanBeValue:
+    from ._value import Op2
+
+    return Op2("or", left, right)
+
+
 class _CallbackAstTransformer(ast.NodeTransformer):
     def visit_BoolOp(self, node: ast.BoolOp) -> ast.AST:
         node = self.generic_visit(node)
@@ -238,10 +259,14 @@ class _CallbackAstTransformer(ast.NodeTransformer):
         if len(node.values) == 1:
             return node.values[0]
 
-        operator = ast.BitAnd() if isinstance(node.op, ast.And) else ast.BitOr()
+        helper_name = "_sq5l_and" if isinstance(node.op, ast.And) else "_sq5l_or"
         expression = node.values[0]
         for value in node.values[1:]:
-            expression = ast.BinOp(left=expression, op=operator, right=value)
+            expression = ast.Call(
+                func=ast.Name(id=helper_name, ctx=ast.Load()),
+                args=[expression, value],
+                keywords=[],
+            )
         return ast.copy_location(expression, node)
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> ast.AST:
@@ -269,5 +294,9 @@ class _CallbackAstTransformer(ast.NodeTransformer):
 
         expression = pieces[0]
         for piece in pieces[1:]:
-            expression = ast.BinOp(left=expression, op=ast.BitAnd(), right=piece)
+            expression = ast.Call(
+                func=ast.Name(id="_sq5l_and", ctx=ast.Load()),
+                args=[expression, piece],
+                keywords=[],
+            )
         return ast.copy_location(expression, node)
