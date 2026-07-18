@@ -311,6 +311,16 @@ def test_bitwise_predicates_are_not_supported() -> None:
         )
 
 
+def test_if_statement_with_column_expression_is_not_allowed() -> None:
+    def pred(users: object) -> object:
+        if users.id == 1:  # pyright: ignore[reportAttributeAccessIssue]
+            return users.age >= 20  # pyright: ignore[reportAttributeAccessIssue]
+        return users.age >= 30  # pyright: ignore[reportAttributeAccessIssue]
+
+    with pytest.raises(TypeError, match="cannot be used as Python booleans"):
+        table("users").where(pred)
+
+
 def test_chained_where_runs_on_sqlite() -> None:
     con = _conn()
     con.executescript("""

@@ -46,6 +46,12 @@ class CanAggregate:
 
 
 class CanBeValue(CanAggregate):
+    def __bool__(self) -> bool:
+        raise TypeError(
+            "SQL expression objects cannot be used as Python booleans; "
+            "use callback expression syntax (and/or/not, comparisons) instead"
+        )
+
     def __invert__(self) -> Op1:
         return Op1("invert", self)
 

@@ -1,6 +1,6 @@
 [project]
 name = "sq5l"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
